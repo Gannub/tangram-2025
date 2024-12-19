@@ -12,59 +12,29 @@ def assign_tangram_label(contour: np.ndarray, approx: np.ndarray, _color: str) -
     vertices = len(approx)
     # we dont need to use vertices ?
     shape = "Unknown"
-    if vertices == 4:
-        if _color == "yellow":
-            shape = "Square"
-        elif _color == "purple":
-            shape = "Parallelogram"
-    elif vertices == 3:
-        if _color == "blue":
-            shape = "Large Triangle 1"
-        elif _color == "red":
-            shape = "Large Triangle 2"
-        elif _color == "green":
-            shape = "Medium Triangle"
-        elif _color == "pink":
-            shape = "Small Triangle 1"
-        elif _color == "orange":
-            shape = "Small Triangle 2"
-    # check if hand is holding shapes
-    if vertices <= 10:
-        if vertices > 3:
-            if _color == "blue":
-                shape = "Large Triangle 1 (Holding)"
-            elif _color == "red":
-                shape = "Large Triangle 2 (Holding)"
-            elif _color == "green":
-                shape = "Medium Triangle (Holding)"
-            elif _color == "pink":
-                shape = "Small Triangle 1 (Holding)"
-            elif _color == "orange":
-                shape = "Small Triangle 2 (Holding)"
-        if vertices > 4:
-            if _color == "yellow":
-                shape = "Square (Holding)"
-            elif _color == "purple":
-                shape = "Parallelogram (Holding)"
+    if _color == "blue":
+        shape = "Piece 1"
+    elif _color == "green":
+        shape = "Piece 2"
+    elif _color == "red":
+        shape = "Piece 3"
+    elif _color == "yellow":
+        shape = "Piece 4"
     return shape
 
 
 COLOR_RANGES = {  # based on my lighting
     "red": [(np.array([0, 192, 100]), np.array([5, 255, 255])),
             (np.array([170, 192, 100]), np.array([180, 255, 255]))],
-    "orange": [(np.array([7, 100, 100]), np.array([15, 255, 255]))],
     "yellow": [(np.array([20, 100, 100]), np.array([30, 255, 255]))],
     "green": [(np.array([40, 100, 100]), np.array([90, 255, 255]))],
     "blue": [(np.array([90, 150, 100]), np.array([140, 255, 255]))],
-    "purple": [(np.array([110, 64, 127]), np.array([150, 255, 255]))],
-    "pink": [(np.array([0, 40, 127]), np.array([7, 140, 255])),
-             (np.array([155, 40, 127]), np.array([180, 140, 255]))],
 }
 
 # mediapipe
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(static_image_mode=False,
-                       max_num_hands=2, min_detection_confidence=0.5)
+                       max_num_hands=2, min_detection_confidence=0.3)
 mp_draw = mp.solutions.drawing_utils
 
 # centroid, mvt, rotation
@@ -101,6 +71,8 @@ def main():
     try:
         while True:
             ret, frame = cap.read()
+            mask_frame = np.array(frame)
+            mask_frame[:] = 255
             if not ret:
                 break
 
@@ -142,10 +114,10 @@ def main():
                 contours, _ = cv2.findContours(
                     color_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 for cnt in contours:
-                    if cv2.contourArea(cnt) < 1500:
+                    if cv2.contourArea(cnt) < 500:
                         continue
 
-                    epsilon = 0.05 * cv2.arcLength(cnt, True)
+                    epsilon = 0.02 * cv2.arcLength(cnt, True)
                     approx = cv2.approxPolyDP(cnt, epsilon, True)
 
                     centroid, movement_vector, rotation_angle = detect_movement_rotation(
@@ -159,14 +131,17 @@ def main():
                     tangram_label = assign_tangram_label(
                         cnt, approx, _color=color_name)
                     cv2.putText(frame, tangram_label, (centroid[0], centroid[1] - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 2555, 255), 2)
 
                     cv2.drawContours(frame, [approx], -1, (255, 255, 255), 2)
+                    cv2.drawContours(mask_frame, [approx], -1, color=(0, 0, 0), thickness=cv2.FILLED)
+                    
                     print(prev_pos)
 
             # output
             # contours1 = contours1[0].reshape(-1,2)
             cv2.imshow("Tangram", frame)
+            cv2.imshow("Mask", mask_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 raise InterruptedError
     except:
