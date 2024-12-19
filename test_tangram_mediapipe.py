@@ -36,15 +36,15 @@ def assign_tangram_label(contour: np.ndarray, approx: np.ndarray, _color: str) -
 
 
 COLOR_RANGES = {  # based on my lighting
-    "red": [(np.array([0, 130, 110]), np.array([5, 255, 255])),
-            (np.array([170, 130, 110]), np.array([180, 255, 255]))],
-    "orange": [(np.array([7, 100, 110]), np.array([15, 255, 255]))],
+    "red": [(np.array([0, 192, 100]), np.array([5, 255, 255])),
+            (np.array([170, 192, 100]), np.array([180, 255, 255]))],
+    "orange": [(np.array([7, 100, 100]), np.array([15, 255, 255]))],
     "yellow": [(np.array([20, 100, 100]), np.array([30, 255, 255]))],
-    "green": [(np.array([40, 50, 60]), np.array([90, 255, 255]))],
-    "blue": [(np.array([90, 150, 60]), np.array([140, 255, 255]))],
-    "purple": [(np.array([110, 50, 70]), np.array([150, 255, 255]))],
-    "pink": [(np.array([0, 50, 70]), np.array([5, 140, 255])),
-             (np.array([170, 50, 70]), np.array([180, 140, 255]))],
+    "green": [(np.array([40, 100, 100]), np.array([90, 255, 255]))],
+    "blue": [(np.array([90, 150, 100]), np.array([140, 255, 255]))],
+    "purple": [(np.array([110, 64, 127]), np.array([150, 255, 255]))],
+    "pink": [(np.array([0, 40, 127]), np.array([7, 140, 255])),
+             (np.array([155, 40, 127]), np.array([180, 140, 255]))],
 }
 
 # mediapipe
@@ -77,9 +77,9 @@ def detect_movement_rotation(contour: np.ndarray, prev_centroid: Optional[Tuple[
 
 def main():
     # camera device for Tonsak
-    # cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(1)
     # camera device for mac/Linux user
-    cap = cv2.VideoCapture(0)
+    # cap = cv2.VideoCapture(0)
     
     prev_pos = {}
     try:
