@@ -79,7 +79,7 @@ def main():
     # camera device for Tonsak
     # cap = cv2.VideoCapture(1)
     # camera device for mac/Linux user
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
     
     prev_pos = {}
     try:
