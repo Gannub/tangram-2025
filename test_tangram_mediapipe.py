@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import mediapipe as mp
 from typing import Tuple, Optional, Dict
+import platform
 
 # TANGRAM_LABELS = ["Small Triangle 1", "Small Triangle 2", "Medium Triangle",
 #                   "Large Triangle 1", "Large Triangle 2", "Square", "Parallelogram"]
@@ -76,10 +77,12 @@ def detect_movement_rotation(contour: np.ndarray, prev_centroid: Optional[Tuple[
 
 
 def main():
-    # camera device for Tonsak
-    cap = cv2.VideoCapture(1)
-    # camera device for mac/Linux user
-    # cap = cv2.VideoCapture(0)
+    cap = ""
+    # camera device for each OS
+    if platform.system() == "Windows":
+        cap = cv2.VideoCapture(1)
+    else:
+        cap = cv2.VideoCapture(0)
     
     prev_pos = {}
     try:
