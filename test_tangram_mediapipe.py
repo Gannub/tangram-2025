@@ -11,29 +11,42 @@ import platform
 def assign_tangram_label(contour: np.ndarray, approx: np.ndarray, _color: str) -> str:
     vertices = len(approx)
     # we dont need to use vertices ?
+    shape = "Unknown"
     if vertices == 4:
-        x, y, w, h = cv2.boundingRect(approx)
-        aspect_ratio = w / h if h > 0 else 0
-        if 0.9 < aspect_ratio < 1.1:
-            if _color == "yellow":
-                return "Square"
-        else:
-            if _color == "purple":
-                return "Parallelogram"
-
+        if _color == "yellow":
+            shape = "Square"
+        elif _color == "purple":
+            shape = "Parallelogram"
     elif vertices == 3:
         if _color == "blue":
-            return "Large Triangle 1"
+            shape = "Large Triangle 1"
         elif _color == "red":
-            return "Large Triangle 2"
+            shape = "Large Triangle 2"
         elif _color == "green":
-            return "Medium Triangle"
+            shape = "Medium Triangle"
         elif _color == "pink":
-            return "Small Triangle 1"
+            shape = "Small Triangle 1"
         elif _color == "orange":
-            return "Small Triangle 2"
-
-    return "Unknown"
+            shape = "Small Triangle 2"
+    # check if hand is holding shapes
+    if vertices <= 10:
+        if vertices > 3:
+            if _color == "blue":
+                shape = "Large Triangle 1 (Holding)"
+            elif _color == "red":
+                shape = "Large Triangle 2 (Holding)"
+            elif _color == "green":
+                shape = "Medium Triangle (Holding)"
+            elif _color == "pink":
+                shape = "Small Triangle 1 (Holding)"
+            elif _color == "orange":
+                shape = "Small Triangle 2 (Holding)"
+        if vertices > 4:
+            if _color == "yellow":
+                shape = "Square (Holding)"
+            elif _color == "purple":
+                shape = "Parallelogram (Holding)"
+    return shape
 
 
 COLOR_RANGES = {  # based on my lighting
@@ -114,7 +127,6 @@ def main():
                                 (x_max, y_max), 255, -1)
 
             inverse_hand_mask = cv2.bitwise_not(hand_mask)
-
             for color_name, ranges in COLOR_RANGES.items():
                 color_mask = np.zeros_like(hand_mask)
                 for lower, upper in ranges:
@@ -130,10 +142,10 @@ def main():
                 contours, _ = cv2.findContours(
                     color_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 for cnt in contours:
-                    if cv2.contourArea(cnt) < 500:
+                    if cv2.contourArea(cnt) < 1500:
                         continue
 
-                    epsilon = 0.02 * cv2.arcLength(cnt, True)
+                    epsilon = 0.05 * cv2.arcLength(cnt, True)
                     approx = cv2.approxPolyDP(cnt, epsilon, True)
 
                     centroid, movement_vector, rotation_angle = detect_movement_rotation(
@@ -147,12 +159,13 @@ def main():
                     tangram_label = assign_tangram_label(
                         cnt, approx, _color=color_name)
                     cv2.putText(frame, tangram_label, (centroid[0], centroid[1] - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
 
                     cv2.drawContours(frame, [approx], -1, (255, 255, 255), 2)
                     print(prev_pos)
 
             # output
+            # contours1 = contours1[0].reshape(-1,2)
             cv2.imshow("Tangram", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 raise InterruptedError
