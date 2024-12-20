@@ -4,8 +4,22 @@ import mediapipe as mp
 from typing import Tuple, Optional, Dict
 import platform
 
-# TANGRAM_LABELS = ["Small Triangle 1", "Small Triangle 2", "Medium Triangle",
-#                   "Large Triangle 1", "Large Triangle 2", "Square", "Parallelogram"]
+# Define Tangram pieces with approximate aspect ratios and vertex counts
+TANGRAM_PIECES = {
+    "Small Triangle 1": {"vertices": 3, "aspect_ratio": (0.5, 1.5)},
+    "Small Triangle 2": {"vertices": 3, "aspect_ratio": (0.5, 1.5)},
+    "Medium Triangle": {"vertices": 3, "aspect_ratio": (1.0, 2.0)},
+    "Large Triangle 1": {"vertices": 3, "aspect_ratio": (1.5, 3.0)},
+    "Large Triangle 2": {"vertices": 3, "aspect_ratio": (1.5, 3.0)},
+    "Square": {"vertices": 4, "aspect_ratio": (0.9, 1.1)},
+    "Parallelogram": {"vertices": 4, "aspect_ratio": (1.5, 3.0)},
+}
+
+# mediapipe
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(static_image_mode=False,
+                       max_num_hands=2, min_detection_confidence=0.5)
+mp_draw = mp.solutions.drawing_utils
 
 
 def assign_tangram_label(contour: np.ndarray, approx: np.ndarray, _color: str) -> str:
@@ -61,11 +75,44 @@ COLOR_RANGES = {  # based on my lighting
              (np.array([155, 40, 127]), np.array([180, 140, 255]))],
 }
 
-# mediapipe
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(static_image_mode=False,
-                       max_num_hands=2, min_detection_confidence=0.5)
-mp_draw = mp.solutions.drawing_utils
+
+def reconstruct_missing_shapes(frame_contour: np.ndarray, original_frame: np.ndarray) -> np.ndarray:
+    """
+    Reconstruct missing shapes in the frame by removing occlusions caused by the hand.
+
+    Parameters:
+    - frame_contour: Contour image frame (binary or edge-detected).
+    - original_frame: Original frame where the shapes are occluded.
+
+    Returns:
+    - Reconstructed frame with inpainted regions.
+    """
+    # Find contours in the contour frame
+    contours, _ = cv2.findContours(
+        frame_contour, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Create a mask to mark occluded regions
+    mask = np.zeros_like(frame_contour)
+
+    for c in contours:
+        # Iterate through approximation levels to refine contour approximation
+        for eps in np.linspace(0.001, 0.05, 10):
+            peri = cv2.arcLength(c, True)  # Contour perimeter
+            approx = cv2.approxPolyDP(
+                c, eps * peri, True)  # Approximate polygon
+
+            # If a good approximation is found (e.g., enough points for a shape)
+            if len(approx) >= 3:
+                # Draw the approximated shape on the mask
+                cv2.drawContours(mask, [approx], -1, 255, thickness=cv2.FILLED)
+                break
+
+    # Inpaint the occluded regions based on the mask
+    inpainted_frame = cv2.inpaint(
+        original_frame, mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
+
+    return inpainted_frame
+
 
 # centroid, mvt, rotation
 
@@ -96,8 +143,9 @@ def main():
         cap = cv2.VideoCapture(1)
     else:
         cap = cv2.VideoCapture(0)
-    
+
     prev_pos = {}
+
     try:
         while True:
             ret, frame = cap.read()
@@ -118,13 +166,17 @@ def main():
                         frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
                     h, w, _ = frame.shape
-                    x_min = int(min([lm.x for lm in hand_landmarks.landmark]) * w)
-                    y_min = int(min([lm.y for lm in hand_landmarks.landmark]) * h)
-                    x_max = int(max([lm.x for lm in hand_landmarks.landmark]) * w)
-                    y_max = int(max([lm.y for lm in hand_landmarks.landmark]) * h)
+                    x_min = int(
+                        min([lm.x for lm in hand_landmarks.landmark]) * w)
+                    y_min = int(
+                        min([lm.y for lm in hand_landmarks.landmark]) * h)
+                    x_max = int(
+                        max([lm.x for lm in hand_landmarks.landmark]) * w)
+                    y_max = int(
+                        max([lm.y for lm in hand_landmarks.landmark]) * h)
 
                     cv2.rectangle(hand_mask, (x_min, y_min),
-                                (x_max, y_max), 255, -1)
+                                  (x_max, y_max), 255, -1)
 
             inverse_hand_mask = cv2.bitwise_not(hand_mask)
             for color_name, ranges in COLOR_RANGES.items():
@@ -136,8 +188,10 @@ def main():
                 color_mask = cv2.bitwise_and(
                     color_mask, color_mask, mask=inverse_hand_mask)
                 kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-                color_mask = cv2.morphologyEx(color_mask, cv2.MORPH_CLOSE, kernel)
-                color_mask = cv2.morphologyEx(color_mask, cv2.MORPH_OPEN, kernel)
+                color_mask = cv2.morphologyEx(
+                    color_mask, cv2.MORPH_CLOSE, kernel)
+                color_mask = cv2.morphologyEx(
+                    color_mask, cv2.MORPH_OPEN, kernel)
 
                 contours, _ = cv2.findContours(
                     color_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -164,9 +218,14 @@ def main():
                     cv2.drawContours(frame, [approx], -1, (255, 255, 255), 2)
                     print(prev_pos)
 
-            # output
-            # contours1 = contours1[0].reshape(-1,2)
-            cv2.imshow("Tangram", frame)
+            # Reconstruct missing shapes
+            reconstructed_frame = reconstruct_missing_shapes(
+                hand_mask, frame
+            )
+
+            # Display results
+
+            cv2.imshow("Tangram", reconstructed_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 raise InterruptedError
     except:
