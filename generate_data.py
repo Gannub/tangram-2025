@@ -2,9 +2,10 @@ import os
 import random
 import json
 from PIL import Image, ImageDraw
-from svgpathtools import svg2paths, Path
+from svgpathtools import svg2paths
 import re
 import numpy as np
+from detectron2.structures import BoxMode
 
 # Paths to SVG files
 svg_files = [
@@ -121,9 +122,10 @@ def generate_coco_dataset(svg_files, num_samples=1000, output_dir="dataset"):
             min_x, min_y, max_x, max_y = get_bounding_box(transformed_shape)
             width, height = max_x - min_x, max_y - min_y
 
-            x_offset = random.randint(-int(min_x), CANVAS_SIZE - int(max_x))
-            y_offset = random.randint(-int(min_y), CANVAS_SIZE - int(max_y))
-
+            max_offset_x = CANVAS_SIZE - max_x
+            max_offset_y = CANVAS_SIZE - max_y
+            x_offset = random.randint(-int(min_x), int(max_offset_x))
+            y_offset = random.randint(-int(min_y), int(max_offset_y))
             rotation = random.choice([0, 90, 180, 270])
 
             # Apply rotation and offset
@@ -139,8 +141,11 @@ def generate_coco_dataset(svg_files, num_samples=1000, output_dir="dataset"):
                     rotated_segment.append((x, y))
                 final_shape.append(rotated_segment)
 
-
-            clipped_shape = [clip_to_canvas(segment, CANVAS_SIZE) for segment in final_shape]
+            # Verify the shape stays within bounds
+            all_x = [point[0] for segment in final_shape for point in segment]
+            all_y = [point[1] for segment in final_shape for point in segment]
+            if min(all_x) < 0 or max(all_x) > CANVAS_SIZE or min(all_y) < 0 or max(all_y) > CANVAS_SIZE:
+                continue  # Skip this shape if it goes out of bounds
 
             # Flatten final_shape for segmentation
             segmentation = [coord for segment in final_shape for point in segment for coord in point]
@@ -163,6 +168,7 @@ def generate_coco_dataset(svg_files, num_samples=1000, output_dir="dataset"):
                 "image_id": sample_id,
                 "category_id": next(c["id"] for c in categories if c["name"] in svg_file),
                 "bbox": [bbox_min_x, bbox_min_y, bbox_width, bbox_height],
+                "bbox_mode": BoxMode.XYXY_ABS,
                 "segmentation": [segmentation],  # Flattened polygon points
                 "area": width * height,
                 "iscrowd": 0
