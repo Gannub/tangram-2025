@@ -76,45 +76,35 @@ COLOR_RANGES = {  # based on my lighting
 }
 
 
-def reconstruct_missing_shapes(frame_contour: np.ndarray, original_frame: np.ndarray) -> np.ndarray:
+def reconstruct_missing_shapes(frame_contours: list, original_frame: np.ndarray) -> np.ndarray:
     """
     Reconstruct missing shapes in the frame by removing occlusions caused by the hand.
 
     Parameters:
-    - frame_contour: Contour image frame (binary or edge-detected).
+    - frame_contours: List of contours detected in the binary or edge-detected image.
     - original_frame: Original frame where the shapes are occluded.
 
     Returns:
     - Reconstructed frame with inpainted regions.
     """
-    # Find contours in the contour frame
-    contours, _ = cv2.findContours(
-        frame_contour, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Create a mask to mark occluded regions
-    mask = np.zeros_like(frame_contour)
+    # Create a blank mask for occluded regions
+    mask = np.zeros(original_frame.shape[:2], dtype=np.uint8)
 
-    for c in contours:
-        # Iterate through approximation levels to refine contour approximation
-        for eps in np.linspace(0.001, 0.05, 10):
-            peri = cv2.arcLength(c, True)  # Contour perimeter
-            approx = cv2.approxPolyDP(
-                c, eps * peri, True)  # Approximate polygon
+    # Draw filled contours onto the mask
+    for contour in frame_contours:
+        # Approximate the contour to simplify the shape
+        epsilon = 0.02 * cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, epsilon, True)
 
-            # If a good approximation is found (e.g., enough points for a shape)
-            if len(approx) >= 3:
-                # Draw the approximated shape on the mask
-                cv2.drawContours(mask, [approx], -1, 255, thickness=cv2.FILLED)
-                break
+        # Fill the approximate polygon on the mask
+        cv2.drawContours(mask, [approx], -1, 255, thickness=cv2.FILLED)
 
-    # Inpaint the occluded regions based on the mask
-    inpainted_frame = cv2.inpaint(
-        original_frame, mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
+    # Use inpainting to reconstruct occluded regions
+    inpainted_frame = cv2.inpaint(original_frame, mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
 
     return inpainted_frame
 
-
-# centroid, mvt, rotation
 
 
 def detect_movement_rotation(contour: np.ndarray, prev_centroid: Optional[Tuple[int, int]]) -> Tuple[Optional[Tuple[int, int]], Optional[Tuple[int, int]], Optional[float]]:
@@ -212,6 +202,9 @@ def main():
 
                     tangram_label = assign_tangram_label(
                         cnt, approx, _color=color_name)
+
+                    cv2.putText(frame, f"{rotation_angle}", (
+                        centroid[0], centroid[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
                     cv2.putText(frame, tangram_label, (centroid[0], centroid[1] - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
 
@@ -220,7 +213,7 @@ def main():
 
             # Reconstruct missing shapes
             reconstructed_frame = reconstruct_missing_shapes(
-                hand_mask, frame
+                contours, frame
             )
 
             # Display results
