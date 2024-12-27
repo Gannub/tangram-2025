@@ -81,7 +81,7 @@ def crop_picture(picture: np.array):
     y, x, sy, sx = cv2.boundingRect(img_arr)
     return [sx, sy], picture[x:x+sx,y:y+sy]
 
-debug = True
+debug = False
 
 def main():
     cap = ""
@@ -104,6 +104,7 @@ def main():
                 # frame = cv2.imread("../data/img{}.jpg".format((cntLoop//1) * 5))
             else:
                 ret, frame = cap.read()
+            frame = cv2.resize(frame, (640*3, 480*3))
             frame = cv2.GaussianBlur(frame,(3,3),1)
             mask_frame = np.array(frame)
             mask_frame[:] = 255
@@ -171,7 +172,6 @@ def main():
                     cv2.drawContours(frame, [approx], -1, (255, 255, 255), 2)
                     cv2.drawContours(mask_frame, [approx], -1, color=(0, 0, 0), thickness=cv2.FILLED)
                     
-                    print(prev_pos)
             
             erosion_mask_frame = cv2.erode(mask_frame,np.ones((11,11)))
             denoised_mask_frame = cv2.dilate(erosion_mask_frame,np.ones((11,11)))
@@ -186,7 +186,7 @@ def main():
                 arr = np.array([[loc[1][i],loc[0][i]] for i in range(len(loc[0]))])
                 
                 bounding_box = cv2.minAreaRect(arr)
-                print(bounding_box)
+                # print(bounding_box)
                 
                 
                 box_points = cv2.boxPoints(bounding_box)
@@ -198,7 +198,7 @@ def main():
                 denoised_mask_frame = cv2.warpAffine(src = denoised_mask_frame, M = rot,
                                                      dsize = (denoised_mask_frame.shape[1], denoised_mask_frame.shape[0]),
                                                      flags = cv2.INTER_LINEAR, borderMode = cv2.BORDER_CONSTANT,
-                                                     borderValue=(255,255,255))
+                                                     borderValue = 255)
                 
                 # TODO
                 # Check 4 rotation 
@@ -207,21 +207,24 @@ def main():
                 #     sizes, use_img_template = crop_picture(img_template)
                 #     rot_index = (rot_index + 1) % 2
                     
-                use_img_template = cv2.rotate(img_template,cv2.ROTATE_90_CLOCKWISE)
+                # use_img_template = cv2.rotate(img_template,cv2.ROTATE_90_CLOCKWISE)
+                use_img_template = img_template
                 # scale = cv2.getRotationMatrix2D(bounding_box[0], 0, template_sizes[rot_index] / bounding_box[1][0])
                 scale = cv2.getRotationMatrix2D(bounding_box[0], 0, template_sizes[0] / bounding_box[1][0])
                 use_denoised_mask_frame = cv2.warpAffine(src = denoised_mask_frame, M = scale,
                                                             dsize = (denoised_mask_frame.shape[1], denoised_mask_frame.shape[0]),
                                                             flags = cv2.INTER_LINEAR, borderMode = cv2.BORDER_CONSTANT,
-                                                            borderValue = (255,255,255))
+                                                            borderValue = 255)
                 
+                cv2.imshow("Use Mask", use_denoised_mask_frame)
                 
-                sim_frame = cv2.matchTemplate(use_denoised_mask_frame, use_img_template, cv2.TM_SQDIFF)
-                sim_frame /= np.max(sim_frame)
-                sim_frame *= 255.0
-                sim_frame = sim_frame.astype('uint8')
+                sim_frame = cv2.matchTemplate(use_denoised_mask_frame, use_img_template, cv2.TM_CCORR_NORMED)
+                # sim_frame /= np.max(sim_frame)
+                # sim_frame *= 255.0
+                # sim_frame = sim_frame.astype('uint8')
                 
-                sim = np.where(sim_frame == np.min(sim_frame))
+                sim = np.where(sim_frame == np.max(sim_frame))
+                print(np.min(sim_frame),np.max(sim_frame))
                 yy, xx = sim[0][0] ,sim[1][0]
                 # TODO
                 # Detect max possible matching
@@ -231,7 +234,7 @@ def main():
             
             cv2.imshow("Tangram", frame)
             cv2.imshow("Mask", denoised_mask_frame)
-            cv2.imshow("Use Image", img_template)
+            # cv2.imshow("Use Image", img_template)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 raise InterruptedError
     except Exception as e:
